@@ -1,3 +1,0 @@
-/home/divan/stereo_lidar_recorder/sending_camera_lidar/build/CMakeFiles/sending_camera_lidar.dir
-/home/divan/stereo_lidar_recorder/sending_camera_lidar/build/CMakeFiles/edit_cache.dir
-/home/divan/stereo_lidar_recorder/sending_camera_lidar/build/CMakeFiles/rebuild_cache.dir
