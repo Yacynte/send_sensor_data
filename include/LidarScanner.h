@@ -10,6 +10,7 @@
 #include <pcl/conversions.h>
 #include <pcl/PCLPointCloud2.h>
 #include "rplidar.h"
+#include <opencv2/opencv.hpp>
 
 
 using namespace rp::standalone::rplidar;
@@ -21,7 +22,7 @@ class LidarScanner {
         ~LidarScanner();
     
         bool initialize();
-        bool getScans(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_);
+        bool getScans(cv::Mat& lidar_matrix, std::string& timestamp);
         
         // void savePointCloud(const std::string& filename);
     

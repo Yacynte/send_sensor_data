@@ -25,7 +25,7 @@ add_definitions(${PCL_DEFINITIONS})
 
 
 # Add executable
-add_executable(sending_camera_lidar src/main.cpp src/StereoCamera.cpp src/LidarScanner.cpp)
+add_executable(sending_camera_lidar src/main.cpp src/StereoCamera.cpp src/LidarScanner.cpp src/utils)
 
 # Link libraries
 target_link_libraries(sending_camera_lidar 

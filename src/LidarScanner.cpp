@@ -1,5 +1,6 @@
 // LiDAR.cpp
 #include "LidarScanner.h"
+#include "utils.h"
 
 
 using namespace rp::standalone::rplidar;
@@ -43,10 +44,9 @@ bool LidarScanner::initialize() {
     return true;
 }
 
-bool LidarScanner::getScans(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_) {
-    if (!lidar_) return false;
-
+bool LidarScanner::getScans(cv::Mat& lidar_matrix, std::string& timestamp) {
     
+    if (!lidar_) return false;
 
     rplidar_response_measurement_node_hq_t nodes[8192];
     size_t count = sizeof(nodes) / sizeof(nodes[0]);
@@ -57,12 +57,11 @@ bool LidarScanner::getScans(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_) {
         lidar_->stopMotor();
         return false;
     }
+    timestamp = getTimestamp();
 
-    // Ensure cloud_ is valid
-    if (!cloud_) {
-        cloud_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
-    }
-    cloud_->clear();
+    // Preallocate the matrix with max possible rows (count) and 2 columns (x, y)
+    lidar_matrix.create(count, 2, CV_32F);
+    int valid_points = 0;  // Track valid rows
 
     for (size_t i = 0; i < count; i++) {
         float angle = nodes[i].angle_z_q14 * 90.f / 16384.f;
@@ -71,11 +70,17 @@ bool LidarScanner::getScans(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_) {
         if (distance > 0) {
             float x = distance * cos(angle * M_PI / 180.0f);
             float y = distance * sin(angle * M_PI / 180.0f);
-            cloud_->points.push_back(pcl::PointXYZ(x, y, 0.0));
+
+            lidar_matrix.at<float>(valid_points, 0) = x;
+            lidar_matrix.at<float>(valid_points, 1) = y;
+            valid_points++;  // Increment only for valid points
         }
     }
+    // Trim unused rows
+    lidar_matrix = lidar_matrix.rowRange(0, valid_points);
 
-    if(!cloud_ || cloud_->empty()) return false;
+    if(lidar_matrix.empty()) return false;
     // std::cout << "Cloud size using .size(): " << cloud_->points.size() << std::endl;
     return true;
 }
+

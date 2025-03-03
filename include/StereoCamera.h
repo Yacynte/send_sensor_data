@@ -3,9 +3,12 @@
 
 #include <iostream>
 
+#include <chrono>
 #include <vector>
 #include <string>
 #include <opencv2/opencv.hpp>
+#include <cmath>
+
 
 
 
@@ -25,7 +28,7 @@ class StereoCamera {
          * @param rightFrame - Reference to store right image
          * @return true if frames were captured successfully, false otherwise
          */
-        bool captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame);
+        bool captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame, std::string& timestamp);
 
         /**
          * Cleans up and releases the camera resources.
@@ -41,7 +44,7 @@ class StereoCamera {
          * @return true if both cameras are initialized properly, false otherwise
          */
         bool checkCameras();
-        void splitStereoImage(cv::Mat& leftFrame, cv::Mat& rightFrame);
+        std::string splitStereoImage(cv::Mat& leftFrame, cv::Mat& rightFrame);
 
         cv::Mat K1 = (cv::Mat_<double>(3, 3) << 320, 0, 240, 0, 320, 240, 0, 0, 1); // Left camera intrinsic
         cv::Mat K2 = (cv::Mat_<double>(3, 3) << 320, 0, 240, 0, 320, 240, 0, 0, 1); // Right camera intrinsic

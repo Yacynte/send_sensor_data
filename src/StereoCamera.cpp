@@ -1,5 +1,6 @@
 // StereoCamera.cpp
 #include "StereoCamera.h"
+#include "utils.h"
 #include <thread>
 // Constructor: Open both left and right cameras
 StereoCamera::StereoCamera(int leftCamID, int rightCamID) {
@@ -33,9 +34,10 @@ StereoCamera::~StereoCamera() {
     
 }
 
-void StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFrame) {
+std::string StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFrame) {
     cv::Mat frame;
     leftCam.read(frame);  // Capture a frame
+    std::string timestamp = getTimestamp();
     // Check if frame is empty
     if (!frame.empty()) {
         // Define left and right ROI
@@ -61,18 +63,20 @@ void StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFrame) {
     //     cv::waitKey(0);  // Wait for a key press
     else {
         std::cerr << "Error: Captured frame is empty!" << std::endl;
-        return;
+        return "Error";
     }
+    return timestamp;
 }
 
 // Captures a stereo pair of frames
-bool StereoCamera::captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame) {
+bool StereoCamera::captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame, std::string& timestamp) {
     if (!checkCameras()) {
         return false;
     }
 
     if (rightCamIDp == 100){
-        splitStereoImage(leftFrame, rightFrame);
+        
+        timestamp = splitStereoImage(leftFrame, rightFrame);
         RectifyImage(leftFrame, rightFrame);
         // auto rectifiedCur = RectifyImage(leftImage_cur, rightImage_cur);
 
@@ -91,6 +95,7 @@ bool StereoCamera::captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame) {
         std::cerr << "Error: Failed to capture right frame." << std::endl;
         return false;
     }
+    timestamp = getTimestamp();
 
     RectifyImage(leftFrame, rightFrame);
        
