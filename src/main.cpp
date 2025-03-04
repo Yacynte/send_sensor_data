@@ -24,7 +24,7 @@
 #include <queue>
 #include <mutex>
 
-#define UDP_IP "192.168.178.40"
+#define UDP_IP "192.168.178.28"
 #define UDP_PORT 5005
 #define CHUNK_SIZE 4096
 
