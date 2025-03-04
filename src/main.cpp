@@ -150,7 +150,7 @@ void sendLidar(int sock, const std::string& timestamp, const cv::Mat& lidar_matr
 void camera_record(StereoCamera& stereoCam, int sock, struct sockaddr_in serverAddr){
     // StereoCamera stereoCam(0, 2); // Adjust IDs based on your setup
 
-    
+    std::cout << "In camera thread " <<std::endl;
     auto now = std::chrono::steady_clock::now();
     int frameCounter = 0;
 
@@ -187,6 +187,7 @@ void lidar_record(LidarScanner& lidarscan, int sock, struct sockaddr_in serverAd
         std::cerr << "RPLIDAR C1 initialization failed!" << std::endl;
         return ;
     }
+    std::cout << "in lidar thread" <<std::endl;
     auto now = std::chrono::steady_clock::now();
     // auto start = std::chrono::steady_clock::now();
 
@@ -222,7 +223,7 @@ void lidar_record(LidarScanner& lidarscan, int sock, struct sockaddr_in serverAd
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <left_camera_id> <right_camera_id> <lidar_port>" << std::endl;
-        return 1;
+        return - 1;
     }
 
      // Create a UDP socket
@@ -250,16 +251,16 @@ int main(int argc, char** argv) {
     LidarScanner lidarscan(lidar_port);
 
     // camera_record(stereoCam, vo, totalTranslation, totalRotation);
-
+    std::cout << "SteraoCamera and Lidar Initialized " << std::endl;
     // Launching user input in a separate thread
     std::thread inputThread(listen_for_esc);
-
+    std::cout << "input thread started" <<std::endl;
     // Start the camera recording threads
     std::thread cameraThread(camera_record, std::ref(stereoCam), sock, std::ref(serverAddr));
-    
+    std::cout << "Camera thread started" <<std::endl;
     // Start the pcd recording threads
     std::thread lidarThread(lidar_record, std::ref(lidarscan), sock, std::ref(serverAddr));
-
+    std::cout << "Lidar thread started" <<std::endl;
     // Wait for the recording threads to finish
     lidarThread.join();
     cameraThread.join();
