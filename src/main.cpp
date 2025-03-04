@@ -21,12 +21,19 @@
 #include <unistd.h>
 #include <fstream>
 
+#include <queue>
+#include <mutex>
 
-#define UDP_IP "192.168.178.28"
+#define UDP_IP "192.168.178.40"
 #define UDP_PORT 5005
 #define CHUNK_SIZE 4096
 
 std::atomic<bool> interupt(false);  // Atomic flag to safely stop the process
+
+std::queue<std::pair<std::vector<uchar>, int>> imageQueue;
+std::mutex imageMutex;
+std::condition_variable imageCondVar;
+bool stopImageSaving = false;
 
 
 // Non-blocking keyboard input function for ESC key press
@@ -50,11 +57,52 @@ void listen_for_esc() {
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  // Restore old terminal settings
 }
 
+void sendData() {
+    while (true) {
+        std::unique_lock<std::mutex> lock(imageMutex);
+        imageCondVar.wait(lock, [] { return !imageQueue.empty() || stopImageSaving; });
+
+        if (stopImageSaving && imageQueue.empty()) break;
+
+        if (!imageQueue.empty()) {
+            auto dataPair = imageQueue.front();
+            imageQueue.pop();
+            lock.unlock();
+
+            std::vector<uchar> fullData = dataPair.first;
+            int sock = dataPair.second;
+            ssize_t bytesSent = 0;
+            size_t totalSize = fullData.size();
+            const uchar* buffer = fullData.data();
+            std::cout << "Sending Data: | Data size: " << totalSize<< " bytes" << std::endl;
+            while (bytesSent < totalSize) {
+                ssize_t sent = send(sock, buffer + bytesSent, totalSize - bytesSent, MSG_NOSIGNAL);
+                if (sent == -1) {
+                    std::cerr << "Error sending Data" << std::endl;
+                    break;
+                }
+                bytesSent += sent;
+            }
+
+            if (bytesSent == totalSize) {
+                std::cout << "Data sent successfully!" << std::endl;
+            } else {
+                std::cerr << "Error: Only " << bytesSent << " of " << totalSize << " bytes sent!" << std::endl;
+            }
+
+            // cv::imwrite(imgPair.second, imgPair.first); // Save image
+            // std::cout << "Saved Image: " << imgPair.second << std::endl;
+
+            lock.lock();
+        }
+    }
+}
+
 
 void sendImageL(int sock, const std::string& timestamp, const cv::Mat& image) {
     // Encode the image matrix to .bin format (as a vector of bytes)
     std::vector<uchar> data;
-    cv::imencode(".bin", image, data);
+    cv::imencode(".png", image, data);
 
     // Get the size of the Mat
     cv::Size matSize = image.size();
@@ -80,19 +128,25 @@ void sendImageL(int sock, const std::string& timestamp, const cv::Mat& image) {
     // Append the image data
     fullData.insert(fullData.end(), data.begin(), data.end());
 
-    // Send the full data buffer in one go
-    if (send(sock, fullData.data(), fullData.size(), 0) == -1) {
-        std::cerr << "Error sending complete left Image" << std::endl;
-        return;
+    {
+        std::lock_guard<std::mutex> lock(imageMutex);
+        imageQueue.push({fullData, sock});
     }
+    imageCondVar.notify_one(); // Notify saving thread
+    // std::cout << "notified queue Image L" << std::endl;
+    // Send the full data buffer in one go
+    // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1){
+    //     std::cerr << "Error sending complete left Image" << std::endl;
+    //     return;
+    // }
 
-    std::cout << "Image sent successfully!" << std::endl;
+    // std::cout << "Image sent successfully!" << std::endl;
 }
 
 void sendImageR(int sock, const std::string& timestamp, const cv::Mat& image) {
     // Similar to sendImageL
     std::vector<uchar> data;
-    cv::imencode(".bin", image, data);
+    cv::imencode(".png", image, data);
 
     // Get the size of the Mat
     cv::Size matSize = image.size();
@@ -110,18 +164,24 @@ void sendImageR(int sock, const std::string& timestamp, const cv::Mat& image) {
     fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
     fullData.insert(fullData.end(), data.begin(), data.end());
 
-    if (send(sock, fullData.data(), fullData.size(), 0) == -1) {
-        std::cerr << "Error sending complete Right Image" << std::endl;
-        return;
+    {
+        std::lock_guard<std::mutex> lock(imageMutex);
+        imageQueue.push({fullData, sock});
     }
+    imageCondVar.notify_one(); // Notify saving thread
+    // std::cout << "notified queue Image R" << std::endl;
+    // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1) {
+    //     std::cerr << "Error sending complete Right Image" << std::endl;
+    //     return;
+    // }
 
-    std::cout << "Image sent successfully!" << std::endl;
+    // std::cout << "Image sent successfully!" << std::endl;
 }
 
 void sendLidar(int sock, const std::string& timestamp, const cv::Mat& lidar_matrix) {
     // Encode the lidar matrix to .bin format (as a vector of bytes)
     std::vector<uchar> data;
-    cv::imencode(".bin", lidar_matrix, data);
+    cv::imencode(".png", lidar_matrix, data);
 
     // Get the size of the Mat
     cv::Size matSize = lidar_matrix.size();
@@ -138,12 +198,18 @@ void sendLidar(int sock, const std::string& timestamp, const cv::Mat& lidar_matr
     fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
     fullData.insert(fullData.end(), data.begin(), data.end());
 
-    if (send(sock, fullData.data(), fullData.size(), 0) == -1) {
-        std::cerr << "Error sending complete Lidar data" << std::endl;
-        return;
+    {
+        std::lock_guard<std::mutex> lock(imageMutex);
+        imageQueue.push({fullData, sock});
     }
+    imageCondVar.notify_one(); // Notify saving thread
+    // std::cout << "notified queue lidar" << std::endl;
+    // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1) {
+    //     std::cerr << "Error sending complete Lidar data" << std::endl;
+    //     return;
+    // }
 
-    std::cout << "Lidar data sent successfully!" << std::endl;
+    // std::cout << "Lidar data sent successfully!" << std::endl;
 }
 
 
@@ -255,6 +321,8 @@ int main(int argc, char** argv) {
     // Launching user input in a separate thread
     std::thread inputThread(listen_for_esc);
     std::cout << "input thread started" <<std::endl;
+    // Start image-saving thread
+    std::thread saveDataThread(sendData);
     // Start the camera recording threads
     std::thread cameraThread(camera_record, std::ref(stereoCam), sock, std::ref(serverAddr));
     std::cout << "Camera thread started" <<std::endl;
@@ -264,6 +332,7 @@ int main(int argc, char** argv) {
     // Wait for the recording threads to finish
     lidarThread.join();
     cameraThread.join();
+    saveDataThread.join();
     // Join the user input thread (this thread will wait for "stop" command)
     inputThread.join();
 
