@@ -1,6 +1,6 @@
 // StereoCamera.cpp
 #include "StereoCamera.h"
-#include "utils.h"
+#include "my_utils.h"
 #include <thread>
 // Constructor: Open both left and right cameras
 StereoCamera::StereoCamera(int leftCamID, int rightCamID) {
@@ -22,9 +22,9 @@ StereoCamera::StereoCamera(int leftCamID, int rightCamID) {
         rightCam.open(rightCamID, cv::CAP_V4L2);
     }
 
-    // if (!checkCameras()) {
-    //     std::cerr << "Failed to open one or both cameras." << std::endl;
-    // }
+    if (!checkCameras()) {
+        std::cerr << "Failed to open one or both cameras." << std::endl;
+    }
 }
 
 // Destructor: Release camera resources when the object goes out of scope
