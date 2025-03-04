@@ -225,23 +225,18 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Create socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+     // Create a UDP socket
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         std::cerr << "Failed to create socket!" << std::endl;
         return -1;
     }
-    // int sock = socket(AF_INET, SOCK_DGRAM, 0);
+
     struct sockaddr_in serverAddr;
+    memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(UDP_PORT);
     inet_pton(AF_INET, UDP_IP, &serverAddr.sin_addr);
-
-    if (connect(sock, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        std::cerr << "Connection failed!" << std::endl;
-        close(sock);
-        return -1;
-    }
 
     // Parse camera IDs from command-line arguments
     int left_camera_id, right_camera_id;
