@@ -132,17 +132,15 @@ void sendData() {
 
             // Send the encoded header in chunks
             size_t sent_bytes_header = 0;
-            while (sent_bytes_header < data_size_header) {
-                size_t chunk_size = std::min(static_cast<size_t>(PACKET_SIZE), data_size - sent_bytes_header);
-                sent_size_header = sendto(sock, buffer.data() + sent_bytes_header, chunk_size, 0,
-                                (struct sockaddr *)&server_addr, sizeof(server_addr));
-                if (sent_size_header < 0) {
-                    perror("Error sending header chunk");
-                    close(sock);
-                    return;
-                }
-                sent_bytes_header += sent_size_header;
+            ssize_t sent_size_header = sendto(sock, header.data(), data_size_header, 0,
+                           (struct sockaddr *)&server_addr, sizeof(server_addr));
+
+            if (sent_size_header < 0) {
+                perror("Error sending header");
+                close(sock);
+                return;
             }
+
             
             // Send total data size first
             ssize_t sent_size = sendto(sock, &data_size, sizeof(data_size), 0,
