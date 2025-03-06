@@ -63,7 +63,7 @@ void sendData() {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         perror("Socket creation failed");
-        return -1;
+        return ;
     }
 
     // Setup server address
@@ -117,7 +117,7 @@ void sendData() {
             fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
 
             // Append the image data
-            fullData.insert(fullData.end(), data.begin(), data.end());
+            fullData.insert(fullData.end(), matSize.begin(), matSize.end());
 
             // Send total data size first
             ssize_t sent_size = sendto(sock, &data_size, sizeof(data_size), 0,
@@ -125,7 +125,7 @@ void sendData() {
             if (sent_size < 0) {
                 perror("Error sending data size");
                 close(sock);
-                return -1;
+                return ;
             }
 
             // Send the encoded data in chunks
