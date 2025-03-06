@@ -48,6 +48,7 @@ void listen_for_esc() {
         char ch = getchar(); // Read a single character
         if (ch == 27 || interupt) { // ESC key
             interupt = true;  // Set interrupt flag
+            stopImageSaving = true;
             std::cout << "Esc key pressed. Interrupt signal sent!" << std::endl;
             break;
         }
@@ -78,7 +79,7 @@ void sendData() {
         return;
     }
 
-    while (!interupt) {
+    while (true) {
         std::unique_lock<std::mutex> lock(imageMutex);
         imageCondVar.wait(lock, [] { return !imageQueue.empty() || stopImageSaving; });
 

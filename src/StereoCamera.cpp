@@ -60,16 +60,17 @@ std::string StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFra
 
 // Captures a stereo pair of frames
 bool StereoCamera::captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame, std::string& timestamp) {
-    if (!checkCameras()) {
-        return false;
-    }
-
     if (rightCamIDp == 100){
         
         timestamp = splitStereoImage(leftFrame, rightFrame);
         // RectifyImage(leftFrame, rightFrame);
         return true;
     }
+    
+    if (!checkCameras()) {
+        return false;
+    }
+
     // Read a frame from both the left and right cameras
     if (!leftCam.read(leftFrame)) {
         std::cerr << "Error: Failed to capture left frame." << std::endl;
