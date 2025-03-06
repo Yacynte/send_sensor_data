@@ -42,13 +42,13 @@ std::string StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFra
         cv::Rect rightROI(frame.cols / 2, 0, frame.cols / 2, frame.rows);
     
         // Extract left and right images
-        cv::Mat frame1; cv::Mat frame2;
+        // cv::Mat frame1; cv::Mat frame2;
 
-        frame1 = frame(leftROI).clone();
-        frame2 = frame(rightROI).clone();
+        leftFrame = frame(leftROI).clone();
+        rightFrame = frame(rightROI).clone();
         
-        cv::resize(frame1, leftFrame, cv::Size(360, 280));
-        cv::resize(frame2, rightFrame, cv::Size(360, 280));
+        // cv::resize(frame1, leftFrame, cv::Size(360, 280));
+        // cv::resize(frame2, rightFrame, cv::Size(360, 280));
     
     }
     else {
@@ -67,7 +67,7 @@ bool StereoCamera::captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame, std::s
     if (rightCamIDp == 100){
         
         timestamp = splitStereoImage(leftFrame, rightFrame);
-        RectifyImage(leftFrame, rightFrame);
+        // RectifyImage(leftFrame, rightFrame);
         return true;
     }
     // Read a frame from both the left and right cameras
