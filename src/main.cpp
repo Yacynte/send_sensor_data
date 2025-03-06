@@ -117,8 +117,8 @@ void sendData() {
             fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
 
             // Append the image data
-            fullData.insert(fullData.end(), matSize.begin(), matSize.end());
-
+            // fullData.insert(fullData.end(), matSize.begin(), matSize.end());
+            fullData.insert(fullData.end(), reinterpret_cast<unsigned char*>(&matSize), reinterpret_cast<unsigned char*>(&matSize) + sizeof(cv::Size));
             // Send total data size first
             ssize_t sent_size = sendto(sock, &data_size, sizeof(data_size), 0,
                                     (struct sockaddr *)&server_addr, sizeof(server_addr));
