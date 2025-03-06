@@ -72,7 +72,7 @@ void sendData() {
     server_addr.sin_port = htons(UDP_PORT);
     server_addr.sin_addr.s_addr = inet_addr(UDP_IP);
 
-    while (true) {
+    while (!interupt) {
         std::unique_lock<std::mutex> lock(imageMutex);
         imageCondVar.wait(lock, [] { return !imageQueue.empty() || stopImageSaving; });
 
@@ -110,15 +110,40 @@ void sendData() {
             // Reserve space for the total buffer size
             fullData.reserve(dataSize);
             size_t data_size = buffer.size();
+            size_t data_size_header = header.size();
             // Append the header
-            fullData.insert(fullData.end(), header.begin(), header.end());
+            // fullData.insert(fullData.end(), header.begin(), header.end());
 
             // Append the data size (convert size_t to bytes)
-            fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
+            // fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
 
             // Append the image data
             // fullData.insert(fullData.end(), matSize.begin(), matSize.end());
-            fullData.insert(fullData.end(), reinterpret_cast<unsigned char*>(&matSize), reinterpret_cast<unsigned char*>(&matSize) + sizeof(cv::Size));
+            // fullData.insert(fullData.end(), reinterpret_cast<unsigned char*>(&matSize), reinterpret_cast<unsigned char*>(&matSize) + sizeof(cv::Size));
+           
+            // Send header data size first
+            ssize_t sent_size_header = sendto(sock, &data_size_header, sizeof(data_size_header), 0,
+                                    (struct sockaddr *)&server_addr, sizeof(server_addr));
+            if (sent_size_header < 0) {
+                perror("Error sending header size");
+                close(sock);
+                return ;
+            }
+
+            // Send the encoded header in chunks
+            size_t sent_bytes_header = 0;
+            while (sent_bytes_header < data_size_header) {
+                size_t chunk_size = std::min(static_cast<size_t>(PACKET_SIZE), data_size - sent_bytes_header);
+                sent_size_header = sendto(sock, buffer.data() + sent_bytes_header, chunk_size, 0,
+                                (struct sockaddr *)&server_addr, sizeof(server_addr));
+                if (sent_size_header < 0) {
+                    perror("Error sending header chunk");
+                    close(sock);
+                    return;
+                }
+                sent_bytes_header += sent_size_header;
+            }
+            
             // Send total data size first
             ssize_t sent_size = sendto(sock, &data_size, sizeof(data_size), 0,
                                     (struct sockaddr *)&server_addr, sizeof(server_addr));
