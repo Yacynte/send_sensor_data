@@ -312,13 +312,13 @@ void camera_record(StereoCamera& stereoCam, int sock, struct sockaddr_in serverA
                 
                 {
                     std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.push({leftFrame, sock, timestamp, "L" });
+                    imageQueue.push({{leftFrame, sock}, {timestamp, "L"} });
                 }
                 imageCondVar.notify_one(); // Notify saving thread
 
                 {
                     std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.push({rightFrame, sock, timestamp, "R" });
+                    imageQueue.push({{rightFrame, sock}, {timestamp, "R"} });
                 }
                 imageCondVar.notify_one(); // Notify saving thread
 
@@ -360,7 +360,7 @@ void lidar_record(LidarScanner& lidarscan, int sock, struct sockaddr_in serverAd
                 // sendLidar(sock, timestamp, scans_cur);
                 {
                     std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.push({scans_cur, sock, timestamp, "D" });
+                    imageQueue.push({{scans_cur, sock}, {timestamp, "D"} });
                 }
                 imageCondVar.notify_one(); // Notify saving thread
 
