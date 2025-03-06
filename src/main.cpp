@@ -26,11 +26,11 @@
 
 #define UDP_IP "192.168.178.28"
 #define UDP_PORT 5005
-#define CHUNK_SIZE 4096
+#define PACKET_SIZE 4096
 
 std::atomic<bool> interupt(false);  // Atomic flag to safely stop the process
 
-std::queue<std::pair<std::vector<uchar>, int>> imageQueue;
+std::queue<std::pair<std::pair<cv::Mat, int>,std::pair<std::string, std::string>>> imageQueue;
 std::mutex imageMutex;
 std::condition_variable imageCondVar;
 bool stopImageSaving = false;
@@ -58,6 +58,20 @@ void listen_for_esc() {
 }
 
 void sendData() {
+
+    // Create UDP socket
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        perror("Socket creation failed");
+        return -1;
+    }
+
+    // Setup server address
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(UDP_PORT);
+    server_addr.sin_addr.s_addr = inet_addr(UDP_IP);
+
     while (true) {
         std::unique_lock<std::mutex> lock(imageMutex);
         imageCondVar.wait(lock, [] { return !imageQueue.empty() || stopImageSaving; });
@@ -69,56 +83,118 @@ void sendData() {
             imageQueue.pop();
             lock.unlock();
 
-            std::vector<uchar> fullData = dataPair.first;
-            int sock = dataPair.second;
-            ssize_t bytesSent = 0;
-            size_t totalSize = fullData.size();
-            const uchar* buffer = fullData.data();
-            std::cout << "Sending Data: | Data size: " << totalSize<< " bytes" << std::endl;
-            while (bytesSent < totalSize) {
-                ssize_t sent = send(sock, buffer + bytesSent, totalSize - bytesSent, MSG_NOSIGNAL);
-                if (sent == -1) {
-                    std::cerr << "Error sending Data" << std::endl;
-                    break;
+            auto first_pair = dataPair.first;
+            auto second_pair = dataPair.second;
+
+            cv::Mat image= first_pair.first;
+            // int sock = first_pair.second;
+            std::string timestamp = second_pair.first;
+            std::string label = second_pair.second;
+
+             // Encode the image matrix to .bin format (as a vector of bytes)
+            std::vector<uchar> buffer;
+            cv::imencode(".png", image, buffer);
+
+            // Get the size of the Mat
+            cv::Size matSize = image.size();
+            int rows = matSize.height;
+            int cols = matSize.width;
+
+            std::string header = label + "|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
+
+
+            // Prepare the full data buffer
+            size_t dataSize = header.size() + sizeof(size_t) + buffer.size();
+            std::vector<uchar> fullData;
+            
+            // Reserve space for the total buffer size
+            fullData.reserve(dataSize);
+            size_t data_size = buffer.size();
+            // Append the header
+            fullData.insert(fullData.end(), header.begin(), header.end());
+
+            // Append the data size (convert size_t to bytes)
+            fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
+
+            // Append the image data
+            fullData.insert(fullData.end(), data.begin(), data.end());
+
+            // Send total data size first
+            ssize_t sent_size = sendto(sock, &data_size, sizeof(data_size), 0,
+                                    (struct sockaddr *)&server_addr, sizeof(server_addr));
+            if (sent_size < 0) {
+                perror("Error sending data size");
+                close(sock);
+                return -1;
+            }
+
+            // Send the encoded data in chunks
+            size_t sent_bytes = 0;
+            while (sent_bytes < data_size) {
+                size_t chunk_size = std::min(static_cast<size_t>(PACKET_SIZE), data_size - sent_bytes);
+                sent_size = sendto(sock, buffer.data() + sent_bytes, chunk_size, 0,
+                                (struct sockaddr *)&server_addr, sizeof(server_addr));
+                if (sent_size < 0) {
+                    perror("Error sending data chunk");
+                    close(sock);
+                    return -1;
                 }
-                bytesSent += sent;
+                sent_bytes += sent_size;
             }
 
-            if (bytesSent == totalSize) {
-                std::cout << "Data sent successfully!" << std::endl;
-            } else {
-                std::cerr << "Error: Only " << bytesSent << " of " << totalSize << " bytes sent!" << std::endl;
-            }
+            std::cout << "Sent " << sent_bytes << " bytes successfully\n";
 
-            // cv::imwrite(imgPair.second, imgPair.first); // Save image
-            // std::cout << "Saved Image: " << imgPair.second << std::endl;
+            // ssize_t bytesSent = 0;
+            // size_t totalSize = fullData.size();
+            // const uchar* buffer = fullData.data();
+            // std::cout << "Sending Data: | Data size: " << totalSize<< " bytes" << std::endl;
+            
+            // while (bytesSent < totalSize) {
+            //     ssize_t sent = send(sock, buffer + bytesSent, totalSize - bytesSent, MSG_NOSIGNAL);
+            //     std::cout << "bytes sent: "<< sent << " bytes" <<std::endl;
+            //     if (sent == -1) {
+            //         std::cerr << "Error sending Data" << std::endl;
+            //         break;
+            //     }
+            //     bytesSent += sent;
+            // }
 
-            lock.lock();
+            // if (bytesSent == totalSize) {
+            //     std::cout << "Data sent successfully!" << std::endl;
+            // } else {
+            //     std::cerr << "Error: Only " << bytesSent << " of " << totalSize << " bytes sent!" << std::endl;
+            // }
+
+            // // cv::imwrite(imgPair.second, imgPair.first); // Save image
+            // // std::cout << "Saved Image: " << imgPair.second << std::endl;
+
+            // lock.lock();
         }
     }
+    close(sock);
 }
 
 
-void sendImageL(int sock, const std::string& timestamp, const cv::Mat& image) {
+void sendImageL(int sock, const std::string& timestamp, const cv::Mat& image, const std::string& label) {
     // Encode the image matrix to .bin format (as a vector of bytes)
-    std::vector<uchar> data;
-    cv::imencode(".png", image, data);
+    std::vector<uchar> buffer;
+    cv::imencode(".png", image, buffer);
 
     // Get the size of the Mat
     cv::Size matSize = image.size();
     int rows = matSize.height;
     int cols = matSize.width;
 
-    std::string header = "L|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
+    std::string header = label + "|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
 
 
     // Prepare the full data buffer
-    size_t dataSize = header.size() + sizeof(size_t) + data.size();
+    size_t dataSize = header.size() + sizeof(size_t) + buffer.size();
     std::vector<uchar> fullData;
     
     // Reserve space for the total buffer size
     fullData.reserve(dataSize);
-    size_t data_size = data.size();
+    size_t data_size = buffer.size();
     // Append the header
     fullData.insert(fullData.end(), header.begin(), header.end());
 
@@ -234,12 +310,23 @@ void camera_record(StereoCamera& stereoCam, int sock, struct sockaddr_in serverA
                 auto now = std::chrono::steady_clock::now();
                 // Get current time in seconds with microsecond precision
                 
+                {
+                    std::lock_guard<std::mutex> lock(imageMutex);
+                    imageQueue.push({leftFrame, sock, timestamp, "L" });
+                }
+                imageCondVar.notify_one(); // Notify saving thread
 
-                std::thread leftThread(sendImageL, sock, timestamp, leftFrame);
-                std::thread rightThread(sendImageR, sock, timestamp, rightFrame);
+                {
+                    std::lock_guard<std::mutex> lock(imageMutex);
+                    imageQueue.push({rightFrame, sock, timestamp, "R" });
+                }
+                imageCondVar.notify_one(); // Notify saving thread
+
+                // std::thread leftThread(sendImageL, sock, timestamp, leftFrame);
+                // std::thread rightThread(sendImageR, sock, timestamp, rightFrame);
                            
-                leftThread.join();
-                rightThread.join();
+                // leftThread.join();
+                // rightThread.join();
             }        
         }
     }
@@ -270,7 +357,13 @@ void lidar_record(LidarScanner& lidarscan, int sock, struct sockaddr_in serverAd
             if (lidarscan.getScans(scans_cur, timestamp)) {
                 auto now = std::chrono::steady_clock::now();
                 
-                sendLidar(sock, timestamp, scans_cur);
+                // sendLidar(sock, timestamp, scans_cur);
+                {
+                    std::lock_guard<std::mutex> lock(imageMutex);
+                    imageQueue.push({scans_cur, sock, timestamp, "D" });
+                }
+                imageCondVar.notify_one(); // Notify saving thread
+
             }
             else {
                 std::cerr << "Failed to obtain lidar scans" << std::endl;
@@ -292,18 +385,19 @@ int main(int argc, char** argv) {
         return - 1;
     }
 
-     // Create a UDP socket
+    // Create UDP socket
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
-        std::cerr << "Failed to create socket!" << std::endl;
+        perror("Socket creation failed");
         return -1;
     }
 
-    struct sockaddr_in serverAddr;
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(UDP_PORT);
-    inet_pton(AF_INET, UDP_IP, &serverAddr.sin_addr);
+    // Setup server address
+    // struct sockaddr_in server_addr;
+    // server_addr.sin_family = AF_INET;
+    // server_addr.sin_port = htons(UDP_PORT);
+    // server_addr.sin_addr.s_addr = inet_addr(UDP_IP);
+
 
     // Parse camera IDs from command-line arguments
     int left_camera_id, right_camera_id;
@@ -324,10 +418,10 @@ int main(int argc, char** argv) {
     // Start image-saving thread
     std::thread saveDataThread(sendData);
     // Start the camera recording threads
-    std::thread cameraThread(camera_record, std::ref(stereoCam), sock, std::ref(serverAddr));
+    std::thread cameraThread(camera_record, std::ref(stereoCam), sock);
     std::cout << "Camera thread started" <<std::endl;
     // Start the pcd recording threads
-    std::thread lidarThread(lidar_record, std::ref(lidarscan), sock, std::ref(serverAddr));
+    std::thread lidarThread(lidar_record, std::ref(lidarscan), sock);
     std::cout << "Lidar thread started" <<std::endl;
     // Wait for the recording threads to finish
     lidarThread.join();
