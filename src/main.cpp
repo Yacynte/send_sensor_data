@@ -137,7 +137,7 @@ void sendData() {
                 if (sent_size < 0) {
                     perror("Error sending data chunk");
                     close(sock);
-                    return -1;
+                    return;
                 }
                 sent_bytes += sent_size;
             }
@@ -175,118 +175,118 @@ void sendData() {
 }
 
 
-void sendImageL(int sock, const std::string& timestamp, const cv::Mat& image, const std::string& label) {
-    // Encode the image matrix to .bin format (as a vector of bytes)
-    std::vector<uchar> buffer;
-    cv::imencode(".png", image, buffer);
+// void sendImageL(int sock, const std::string& timestamp, const cv::Mat& image, const std::string& label) {
+//     // Encode the image matrix to .bin format (as a vector of bytes)
+//     std::vector<uchar> buffer;
+//     cv::imencode(".png", image, buffer);
 
-    // Get the size of the Mat
-    cv::Size matSize = image.size();
-    int rows = matSize.height;
-    int cols = matSize.width;
+//     // Get the size of the Mat
+//     cv::Size matSize = image.size();
+//     int rows = matSize.height;
+//     int cols = matSize.width;
 
-    std::string header = label + "|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
+//     std::string header = label + "|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
 
 
-    // Prepare the full data buffer
-    size_t dataSize = header.size() + sizeof(size_t) + buffer.size();
-    std::vector<uchar> fullData;
+//     // Prepare the full data buffer
+//     size_t dataSize = header.size() + sizeof(size_t) + buffer.size();
+//     std::vector<uchar> fullData;
     
-    // Reserve space for the total buffer size
-    fullData.reserve(dataSize);
-    size_t data_size = buffer.size();
-    // Append the header
-    fullData.insert(fullData.end(), header.begin(), header.end());
+//     // Reserve space for the total buffer size
+//     fullData.reserve(dataSize);
+//     size_t data_size = buffer.size();
+//     // Append the header
+//     fullData.insert(fullData.end(), header.begin(), header.end());
 
-    // Append the data size (convert size_t to bytes)
-    fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
+//     // Append the data size (convert size_t to bytes)
+//     fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
 
-    // Append the image data
-    fullData.insert(fullData.end(), data.begin(), data.end());
+//     // Append the image data
+//     fullData.insert(fullData.end(), data.begin(), data.end());
 
-    {
-        std::lock_guard<std::mutex> lock(imageMutex);
-        imageQueue.push({fullData, sock});
-    }
-    imageCondVar.notify_one(); // Notify saving thread
-    // std::cout << "notified queue Image L" << std::endl;
-    // Send the full data buffer in one go
-    // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1){
-    //     std::cerr << "Error sending complete left Image" << std::endl;
-    //     return;
-    // }
+//     {
+//         std::lock_guard<std::mutex> lock(imageMutex);
+//         imageQueue.push({fullData, sock});
+//     }
+//     imageCondVar.notify_one(); // Notify saving thread
+//     // std::cout << "notified queue Image L" << std::endl;
+//     // Send the full data buffer in one go
+//     // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1){
+//     //     std::cerr << "Error sending complete left Image" << std::endl;
+//     //     return;
+//     // }
 
-    // std::cout << "Image sent successfully!" << std::endl;
-}
+//     // std::cout << "Image sent successfully!" << std::endl;
+// }
 
-void sendImageR(int sock, const std::string& timestamp, const cv::Mat& image) {
-    // Similar to sendImageL
-    std::vector<uchar> data;
-    cv::imencode(".png", image, data);
+// void sendImageR(int sock, const std::string& timestamp, const cv::Mat& image) {
+//     // Similar to sendImageL
+//     std::vector<uchar> data;
+//     cv::imencode(".png", image, data);
 
-    // Get the size of the Mat
-    cv::Size matSize = image.size();
-    int rows = matSize.height;
-    int cols = matSize.width;
+//     // Get the size of the Mat
+//     cv::Size matSize = image.size();
+//     int rows = matSize.height;
+//     int cols = matSize.width;
 
-    std::string header = "R|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
+//     std::string header = "R|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
 
-    size_t dataSize = header.size() + sizeof(size_t) + data.size();
-    std::vector<uchar> fullData;
-    fullData.reserve(dataSize);
+//     size_t dataSize = header.size() + sizeof(size_t) + data.size();
+//     std::vector<uchar> fullData;
+//     fullData.reserve(dataSize);
 
-    size_t data_size = data.size();
-    fullData.insert(fullData.end(), header.begin(), header.end());
-    fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
-    fullData.insert(fullData.end(), data.begin(), data.end());
+//     size_t data_size = data.size();
+//     fullData.insert(fullData.end(), header.begin(), header.end());
+//     fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
+//     fullData.insert(fullData.end(), data.begin(), data.end());
 
-    {
-        std::lock_guard<std::mutex> lock(imageMutex);
-        imageQueue.push({fullData, sock});
-    }
-    imageCondVar.notify_one(); // Notify saving thread
-    // std::cout << "notified queue Image R" << std::endl;
-    // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1) {
-    //     std::cerr << "Error sending complete Right Image" << std::endl;
-    //     return;
-    // }
+//     {
+//         std::lock_guard<std::mutex> lock(imageMutex);
+//         imageQueue.push({fullData, sock});
+//     }
+//     imageCondVar.notify_one(); // Notify saving thread
+//     // std::cout << "notified queue Image R" << std::endl;
+//     // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1) {
+//     //     std::cerr << "Error sending complete Right Image" << std::endl;
+//     //     return;
+//     // }
 
-    // std::cout << "Image sent successfully!" << std::endl;
-}
+//     // std::cout << "Image sent successfully!" << std::endl;
+// }
 
-void sendLidar(int sock, const std::string& timestamp, const cv::Mat& lidar_matrix) {
-    // Encode the lidar matrix to .bin format (as a vector of bytes)
-    std::vector<uchar> data;
-    cv::imencode(".png", lidar_matrix, data);
+// void sendLidar(int sock, const std::string& timestamp, const cv::Mat& lidar_matrix) {
+//     // Encode the lidar matrix to .bin format (as a vector of bytes)
+//     std::vector<uchar> data;
+//     cv::imencode(".png", lidar_matrix, data);
 
-    // Get the size of the Mat
-    cv::Size matSize = lidar_matrix.size();
-    int rows = matSize.height;
-    int cols = matSize.width;
+//     // Get the size of the Mat
+//     cv::Size matSize = lidar_matrix.size();
+//     int rows = matSize.height;
+//     int cols = matSize.width;
 
-    std::string header = "D|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
+//     std::string header = "D|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
 
-    size_t dataSize = header.size() + sizeof(size_t) + data.size();
-    std::vector<uchar> fullData;
-    fullData.reserve(dataSize);
-    size_t data_size = data.size();
-    fullData.insert(fullData.end(), header.begin(), header.end());
-    fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
-    fullData.insert(fullData.end(), data.begin(), data.end());
+//     size_t dataSize = header.size() + sizeof(size_t) + data.size();
+//     std::vector<uchar> fullData;
+//     fullData.reserve(dataSize);
+//     size_t data_size = data.size();
+//     fullData.insert(fullData.end(), header.begin(), header.end());
+//     fullData.insert(fullData.end(), reinterpret_cast<uchar*>(&data_size), reinterpret_cast<uchar*>(&data_size) + sizeof(size_t));
+//     fullData.insert(fullData.end(), data.begin(), data.end());
 
-    {
-        std::lock_guard<std::mutex> lock(imageMutex);
-        imageQueue.push({fullData, sock});
-    }
-    imageCondVar.notify_one(); // Notify saving thread
-    // std::cout << "notified queue lidar" << std::endl;
-    // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1) {
-    //     std::cerr << "Error sending complete Lidar data" << std::endl;
-    //     return;
-    // }
+//     {
+//         std::lock_guard<std::mutex> lock(imageMutex);
+//         imageQueue.push({fullData, sock});
+//     }
+//     imageCondVar.notify_one(); // Notify saving thread
+//     // std::cout << "notified queue lidar" << std::endl;
+//     // if (send(sock, fullData.data(), fullData.size(), MSG_NOSIGNAL) == -1) {
+//     //     std::cerr << "Error sending complete Lidar data" << std::endl;
+//     //     return;
+//     // }
 
-    // std::cout << "Lidar data sent successfully!" << std::endl;
-}
+//     // std::cout << "Lidar data sent successfully!" << std::endl;
+// }
 
 
 void camera_record(StereoCamera& stereoCam, int sock){
