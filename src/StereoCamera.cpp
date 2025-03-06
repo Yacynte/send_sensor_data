@@ -8,10 +8,6 @@ StereoCamera::StereoCamera(int leftCamID, int rightCamID) {
     rightCamIDp = rightCamID;
     leftCam.open(leftCamID, cv::CAP_V4L2);
 
-    // Verify resolution
-    // double width = leftCam.get(cv::CAP_PROP_FRAME_WIDTH);
-    // double height = leftCam.get(cv::CAP_PROP_FRAME_HEIGHT);
-
     if (rightCamID == 100){
         // Set resolution to 3840x1080 (side-by-side stereo)
         leftCam.set(cv::CAP_PROP_FRAME_WIDTH, 3840);
@@ -51,16 +47,10 @@ std::string StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFra
         frame1 = frame(leftROI).clone();
         frame2 = frame(rightROI).clone();
         
-        cv::resize(frame1, leftFrame, cv::Size(640, 480));
-        cv::resize(frame2, rightFrame, cv::Size(640, 480));
+        cv::resize(frame1, leftFrame, cv::Size(360, 280));
+        cv::resize(frame2, rightFrame, cv::Size(360, 280));
     
-        // Show images
-        // cv::imshow("Left Image", leftFrame);
-        // cv::imshow("Right Image", rightFrame);
-        // cv::waitKey(0);
     }
-    // cv::imshow("Right Frame", frame);
-    //     cv::waitKey(0);  // Wait for a key press
     else {
         std::cerr << "Error: Captured frame is empty!" << std::endl;
         return "Error";
@@ -78,11 +68,6 @@ bool StereoCamera::captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame, std::s
         
         timestamp = splitStereoImage(leftFrame, rightFrame);
         RectifyImage(leftFrame, rightFrame);
-        // auto rectifiedCur = RectifyImage(leftImage_cur, rightImage_cur);
-
-        // leftImageRec_pre = rectifiedPre.first;
-        // rightImageRec_pre = rectifiedPre.second;
-
         return true;
     }
     // Read a frame from both the left and right cameras
