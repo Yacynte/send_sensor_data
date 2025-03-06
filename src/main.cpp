@@ -443,11 +443,11 @@ void lidar_record(LidarScanner& lidarscan, int sock){
                 auto now = std::chrono::steady_clock::now();
                 
                 // sendLidar(sock, timestamp, scans_cur);
-                // {
-                //     std::lock_guard<std::mutex> lock(imageMutex);
-                //     imageQueue.push({{scans_cur, sock}, {timestamp, "D"} });
-                // }
-                // imageCondVar.notify_one(); // Notify saving thread
+                {
+                    std::lock_guard<std::mutex> lock(imageMutex);
+                    imageQueue.push({{scans_cur, sock}, {timestamp, "D"} });
+                }
+                imageCondVar.notify_one(); // Notify saving thread
 
             }
             else {
