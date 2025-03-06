@@ -114,7 +114,7 @@ void sendData() {
             send(sock, &image_size, sizeof(image_size), 0);
             send(sock, buffer.data(), image_size, 0);
 
-            std::cout << "Sent " << image_size << " bytes successfully\n";
+            // std::cout << "Sent " << image_size << " bytes successfully\n";
         }
     }
 
@@ -377,7 +377,7 @@ void sendData() {
 void camera_record(StereoCamera& stereoCam, int sock){
     // StereoCamera stereoCam(0, 2); // Adjust IDs based on your setup
 
-    std::cout << "In camera thread " <<std::endl;
+    // std::cout << "In camera thread " <<std::endl;
     auto now = std::chrono::steady_clock::now();
     int frameCounter = 0;
 
@@ -425,7 +425,7 @@ void lidar_record(LidarScanner& lidarscan, int sock){
         std::cerr << "RPLIDAR C1 initialization failed!" << std::endl;
         return ;
     }
-    std::cout << "in lidar thread" <<std::endl;
+    // std::cout << "in lidar thread" <<std::endl;
     auto now = std::chrono::steady_clock::now();
     // auto start = std::chrono::steady_clock::now();
 
