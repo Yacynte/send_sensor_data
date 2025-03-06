@@ -122,9 +122,9 @@ void sendData() {
             // fullData.insert(fullData.end(), reinterpret_cast<unsigned char*>(&matSize), reinterpret_cast<unsigned char*>(&matSize) + sizeof(cv::Size));
            
             // Send header data size first
-            ssize_t sent_size_header = sendto(sock, &data_size_header, sizeof(data_size_header), 0,
+            ssize_t sent_header_size = sendto(sock, &data_size_header, sizeof(data_size_header), 0,
                                     (struct sockaddr *)&server_addr, sizeof(server_addr));
-            if (sent_size_header < 0) {
+            if (sent_header_size < 0) {
                 perror("Error sending header size");
                 close(sock);
                 return ;
