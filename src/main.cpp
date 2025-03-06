@@ -99,9 +99,9 @@ void sendData() {
             std::vector<uchar> buffer;
             cv::imencode(".png", image, buffer);
 
-            int rows = image.rows;
-            int cols = image.cols;
-            std::string header = label + "|" + timestamp + "|" + std::to_string(rows) + "x" + std::to_string(cols) + "|";
+            // int rows = image.rows;
+            // int cols = image.cols;
+            std::string header = label + "|" + timestamp + "|";
 
             size_t header_size = header.size();
             size_t image_size = buffer.size();
@@ -129,7 +129,7 @@ void camera_record(StereoCamera& stereoCam, int sock){
 
     // std::cout << "In camera thread " <<std::endl;
     auto now = std::chrono::steady_clock::now();
-    int frameCounter = 0;
+    // int frameCounter = 0;
 
     cv::Mat leftFrame, rightFrame;
     // Define a vector to store timestamps
@@ -157,11 +157,6 @@ void camera_record(StereoCamera& stereoCam, int sock){
                 }
                 imageCondVar.notify_one(); // Notify saving thread
 
-                // std::thread leftThread(sendImageL, sock, timestamp, leftFrame);
-                // std::thread rightThread(sendImageR, sock, timestamp, rightFrame);
-                           
-                // leftThread.join();
-                // rightThread.join();
             }        
         }
     }
