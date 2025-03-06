@@ -44,11 +44,11 @@ std::string StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFra
         // Extract left and right images
         // cv::Mat frame1; cv::Mat frame2;
 
-        leftFrame = frame(leftROI).clone();
-        rightFrame = frame(rightROI).clone();
+        // frame1 = frame(leftROI).clone();
+        // frame2 = frame(rightROI).clone();
         
-        // cv::resize(frame1, leftFrame, cv::Size(360, 280));
-        // cv::resize(frame2, rightFrame, cv::Size(360, 280));
+        cv::resize(frame(leftROI), leftFrame, cv::Size(240, 135));
+        cv::resize(frame(rightROI), rightFrame, cv::Size(240, 135));
     
     }
     else {
