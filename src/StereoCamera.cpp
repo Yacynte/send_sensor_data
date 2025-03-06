@@ -42,13 +42,13 @@ std::string StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFra
         cv::Rect rightROI(frame.cols / 2, 0, frame.cols / 2, frame.rows);
     
         // Extract left and right images
-        // cv::Mat frame1; cv::Mat frame2;
+        cv::Mat frame1; cv::Mat frame2;
 
-        // frame1 = frame(leftROI).clone();
-        // frame2 = frame(rightROI).clone();
+        frame1 = frame(leftROI).clone();
+        frame2 = frame(rightROI).clone();
         
-        cv::resize(frame(leftROI), leftFrame, cv::Size(240, 135));
-        cv::resize(frame(rightROI), rightFrame, cv::Size(240, 135));
+        cv::resize(frame1, leftFrame, cv::Size(240, 135));
+        cv::resize(frame2, rightFrame, cv::Size(240, 135));
     
     }
     else {
@@ -89,12 +89,11 @@ bool StereoCamera::captureFrames(cv::Mat& leftFrame, cv::Mat& rightFrame, std::s
 
 // Checks if both cameras are opened successfully
 bool StereoCamera::checkCameras() {
-    if (!leftCam.isOpened()) {
-        std::cerr << "Error: Could not open left camera stream." << std::endl;
-    }
-
     if (rightCamIDp == 100){
         return leftCam.isOpened();
+    }
+    if (!leftCam.isOpened()) {
+        std::cerr << "Error: Could not open left camera stream." << std::endl;
     }
 
     if (!rightCam.isOpened()) {
