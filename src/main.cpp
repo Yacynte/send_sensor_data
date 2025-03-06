@@ -289,7 +289,7 @@ void sendLidar(int sock, const std::string& timestamp, const cv::Mat& lidar_matr
 }
 
 
-void camera_record(StereoCamera& stereoCam, int sock, struct sockaddr_in serverAddr){
+void camera_record(StereoCamera& stereoCam, int sock){
     // StereoCamera stereoCam(0, 2); // Adjust IDs based on your setup
 
     std::cout << "In camera thread " <<std::endl;
@@ -334,7 +334,7 @@ void camera_record(StereoCamera& stereoCam, int sock, struct sockaddr_in serverA
 
 
     
-void lidar_record(LidarScanner& lidarscan, int sock, struct sockaddr_in serverAddr){
+void lidar_record(LidarScanner& lidarscan, int sock){
 
     if (!lidarscan.initialize()) {
         std::cerr << "RPLIDAR C1 initialization failed!" << std::endl;
