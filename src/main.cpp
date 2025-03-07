@@ -88,8 +88,12 @@ void sendData() {
             imageQueue.pop();
             lock.unlock();
 
-            auto& [image, socket] = dataPair.first;
-            auto& [timestamp, label] = dataPair.second;
+            auto first_pair = dataPair.first;
+            auto second_pair = dataPair.second;
+
+            cv::Mat image = first_pair.first;
+            std::string timestamp = second_pair.first;
+            std::string label = second_pair.second;
 
             std::vector<uchar> buffer;
             cv::imencode(".jpg", image, buffer);
