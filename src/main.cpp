@@ -130,7 +130,7 @@ void camera_record(StereoCamera& stereoCam, int sock){
 
     // std::cout << "In camera thread " <<std::endl;
     auto now = std::chrono::steady_clock::now();
-    // int frameCounter = 0;
+    int frameCounter = 0;
 
     cv::Mat leftFrame, rightFrame;
     // Define a vector to store timestamps
@@ -144,6 +144,7 @@ void camera_record(StereoCamera& stereoCam, int sock){
             std::string timestamp;
             if (stereoCam.captureFrames(leftFrame, rightFrame, timestamp)) {
                 auto now = std::chrono::steady_clock::now();
+                std::cout << frameCounter << std::endl;
                 // Get current time in seconds with microsecond precision
                 
                 {
@@ -163,7 +164,8 @@ void camera_record(StereoCamera& stereoCam, int sock){
                 std::cerr << "Failed to obtain camera scans" << std::endl;
                 interupt = true;
                 break;
-            }       
+            }
+            frameCounter++;       
         }
     }
 }

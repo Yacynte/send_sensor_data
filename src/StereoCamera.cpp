@@ -47,8 +47,8 @@ std::string StereoCamera::splitStereoImage(cv::Mat &leftFrame, cv::Mat &rightFra
         frame1 = frame(leftROI).clone();
         frame2 = frame(rightROI).clone();
         
-        cv::resize(frame1, leftFrame, cv::Size(240, 135));
-        cv::resize(frame2, rightFrame, cv::Size(240, 135));
+        cv::resize(frame1, leftFrame, cv::Size(640, 480));
+        cv::resize(frame2, rightFrame, cv::Size(640, 480));
     
     }
     else {
