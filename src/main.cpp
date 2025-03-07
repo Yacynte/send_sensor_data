@@ -12,7 +12,6 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
-#include <filesystem>
 #include <termios.h> // For termios functions
 
 
@@ -21,8 +20,6 @@
 #include <unistd.h>
 #include <fstream>
 
-#include <queue>
-#include <mutex>
 
 #define UDP_IP "192.168.178.28"
 #define UDP_PORT 5005
@@ -59,7 +56,7 @@ void listen_for_esc() {
 }
 
 void sendData() {
-
+    // Create a TCP socket
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("Socket creation failed");
@@ -72,7 +69,7 @@ void sendData() {
     server_addr.sin_port = htons(UDP_PORT);
     server_addr.sin_addr.s_addr = inet_addr(UDP_IP);
 
-    // Connect to server
+    // Connect to the server
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connection to server failed");
         close(sock);
@@ -83,6 +80,7 @@ void sendData() {
         std::unique_lock<std::mutex> lock(imageMutex);
         imageCondVar.wait(lock, [] { return !imageQueue.empty() || stopImageSaving; });
 
+        // Exit loop if stop signal is received and queue is empty
         if (stopImageSaving && imageQueue.empty()) break;
 
         if (!imageQueue.empty()) {
@@ -90,132 +88,128 @@ void sendData() {
             imageQueue.pop();
             lock.unlock();
 
-            auto first_pair = dataPair.first;
-            auto second_pair = dataPair.second;
-
-            cv::Mat image = first_pair.first;
-            std::string timestamp = second_pair.first;
-            std::string label = second_pair.second;
+            auto& [image, socket] = dataPair.first;
+            auto& [timestamp, label] = dataPair.second;
 
             std::vector<uchar> buffer;
             cv::imencode(".jpg", image, buffer);
 
-            // int rows = image.rows;
-            // int cols = image.cols;
+            // Prepare header with label and timestamp
             std::string header = label + "|" + timestamp + "|";
-
             size_t header_size = header.size();
             size_t image_size = buffer.size();
 
             // Send header size and header
-            send(sock, &header_size, sizeof(header_size), 0);
-            send(sock, header.data(), header_size, 0);
+            if (send(sock, &header_size, sizeof(header_size), 0) < 0) {
+                perror("Failed to send header size");
+                break;
+            }
+            if (send(sock, header.data(), header_size, 0) < 0) {
+                perror("Failed to send header");
+                break;
+            }
 
-            // Send image size and image
-            send(sock, &image_size, sizeof(image_size), 0);
-            send(sock, buffer.data(), image_size, 0);
-
-            // std::cout << "Sent " << image_size << " bytes successfully\n";
+            // Send image size and image data
+            if (send(sock, &image_size, sizeof(image_size), 0) < 0) {
+                perror("Failed to send image size");
+                break;
+            }
+            if (send(sock, buffer.data(), image_size, 0) < 0) {
+                perror("Failed to send image data");
+                break;
+            }
         }
     }
 
+    // Close the socket connection
     close(sock);
 }
 
 
 
 
-void camera_record(StereoCamera& stereoCam, int sock){
-    // StereoCamera stereoCam(0, 2); // Adjust IDs based on your setup
 
-    // std::cout << "In camera thread " <<std::endl;
-    auto now = std::chrono::steady_clock::now();
+void camera_record(StereoCamera& stereoCam, int sock) {
+    // Initialize time tracking and frame counter
+    auto lastCaptureTime = std::chrono::steady_clock::now();
     int frameCounter = 0;
-
-    cv::Mat leftFrame, rightFrame;
-    // Define a vector to store timestamps
     
-    while (!interupt) {
-        // cv::Mat leftFrame, rightFrame;
+    // Matrices to store left and right stereo frames
+    cv::Mat leftFrame, rightFrame;
+    
+    while (!interupt) { // Loop until interrupted
         auto currentTime = std::chrono::steady_clock::now();
-        // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - now).count();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - now).count() >= 50) { // 1000 ms / 20 FPS = 50 ms
-            // Capture stereo frames
+        
+        // Ensure frame capture at approximately 20 FPS (every 50 ms)
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 50) {
             std::string timestamp;
+            
+            // Capture stereo frames
             if (stereoCam.captureFrames(leftFrame, rightFrame, timestamp)) {
-                auto now = std::chrono::steady_clock::now();
-                std::cout << frameCounter++ << std::endl;
-                // Get current time in seconds with microsecond precision
+                lastCaptureTime = std::chrono::steady_clock::now(); // Update last capture time
                 
-                // Lock once and push both frames together
+                // Lock the queue and push both frames with their respective metadata
                 {
                     std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.emplace(std::make_pair(leftFrame, sock), std::make_pair(timestamp, "L"));
-                    imageQueue.emplace(std::make_pair(rightFrame, sock), std::make_pair(timestamp, "R"));
+                    imageQueue.emplace(std::make_pair(leftFrame, sock), std::make_pair(timestamp, "L")); // Left frame
+                    imageQueue.emplace(std::make_pair(rightFrame, sock), std::make_pair(timestamp, "R")); // Right frame
                 }
+                
+                // Notify waiting threads that new images are available
                 imageCondVar.notify_all();
-            }  
-            else {
-                std::cerr << "Failed to obtain camera scans" << std::endl;
-                interupt = true;
+            } else {
+                // Handle capture failure
+                std::cerr << "Failed to obtain camera frames" << std::endl;
+                interupt = true; // Set interruption flag to stop loop
                 break;
             }
-            // frameCounter++;    
         }
     }
 }
 
 
     
-void lidar_record(LidarScanner& lidarscan, int sock){
-
+void lidar_record(LidarScanner& lidarscan, int sock) {
+    // Attempt to initialize the LiDAR scanner
     if (!lidarscan.initialize()) {
         std::cerr << "RPLIDAR C1 initialization failed!" << std::endl;
-        return ;
+        return;
     }
-    // std::cout << "in lidar thread" <<std::endl;
-    auto now = std::chrono::steady_clock::now();
-    // auto start = std::chrono::steady_clock::now();
 
-    // Initialize point cloud pointers
-    cv::Mat scans_cur;
+    auto lastCaptureTime = std::chrono::steady_clock::now();
+    cv::Mat scans_cur; // Matrix to store current LiDAR scans
 
     while (!interupt) {
         auto currentTime = std::chrono::steady_clock::now();
-        // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - now).count();
         
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - now).count() >= 25) { // 1000 ms / 20 FPS = 50 ms
+        // Capture data at 40 FPS (25 ms per frame)
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 25) {
             std::string timestamp;
             
             if (lidarscan.getScans(scans_cur, timestamp)) {
-                auto now = std::chrono::steady_clock::now();
+                lastCaptureTime = std::chrono::steady_clock::now(); // Update last capture time
                 
-                // sendLidar(sock, timestamp, scans_cur);
+                // Lock the queue and push new LiDAR scan
                 {
                     std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.push({{scans_cur, sock}, {timestamp, "D"} });
+                    imageQueue.push({{scans_cur, sock}, {timestamp, "D"}});
                 }
                 imageCondVar.notify_one(); // Notify saving thread
-
-            }
-            else {
-                std::cerr << "Failed to obtain lidar scans" << std::endl;
+            } else {
+                std::cerr << "Failed to obtain LiDAR scans" << std::endl;
                 interupt = true;
                 break;
-            } 
-
+            }
         }
-        
     }
-
 }
 
 
-
 int main(int argc, char** argv) {
+    // Ensure correct usage
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <left_camera_id> <right_camera_id> <lidar_port>" << std::endl;
-        return - 1;
+        return -1;
     }
 
     // Create UDP socket
@@ -225,40 +219,37 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-
-    // Parse camera IDs from command-line arguments
+    // Parse camera IDs and LiDAR port from command-line arguments
     int left_camera_id, right_camera_id;
     std::string lidar_port = argv[3];
     std::istringstream(argv[1]) >> left_camera_id;
     std::istringstream(argv[2]) >> right_camera_id;
-    // std::string(argv[3]) >> lidar_port;
 
+    // Initialize camera and LiDAR scanner
     StereoCamera stereoCam(left_camera_id, right_camera_id);
-
     LidarScanner lidarscan(lidar_port);
+    std::cout << "StereoCamera and Lidar Initialized" << std::endl;
 
-    // camera_record(stereoCam, vo, totalTranslation, totalRotation);
-    std::cout << "SteraoCamera and Lidar Initialized " << std::endl;
-    // Launching user input in a separate thread
+    // Launch user input listener in a separate thread
     std::thread inputThread(listen_for_esc);
-    std::cout << "input thread started" <<std::endl;
-    // Start image-saving thread
+    
+    // Start data transmission thread
     std::thread saveDataThread(sendData);
-    // Start the camera recording threads
+    
+    // Start camera recording thread
     std::thread cameraThread(camera_record, std::ref(stereoCam), sock);
-    std::cout << "Camera thread started" <<std::endl;
-    // Start the pcd recording threads
+    
+    // Start LiDAR recording thread
     std::thread lidarThread(lidar_record, std::ref(lidarscan), sock);
-    std::cout << "Lidar thread started" <<std::endl;
-    // Wait for the recording threads to finish
+    
+    // Wait for recording threads to finish
     lidarThread.join();
     cameraThread.join();
     saveDataThread.join();
-    // Join the user input thread (this thread will wait for "stop" command)
+    
+    // Join user input thread
     inputThread.join();
 
-    
-
-    std::cout<< "Recording complete"<<"\n";
+    std::cout << "Recording complete" << std::endl;
     return 0;
 }
