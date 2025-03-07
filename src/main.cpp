@@ -23,6 +23,7 @@
 
 #include <queue>
 #include <mutex>
+#include <boost/lockfree/queue.hpp>
 
 #define UDP_IP "192.168.178.28"
 #define UDP_PORT 5005
@@ -30,7 +31,10 @@
 
 std::atomic<bool> interupt(false);  // Atomic flag to safely stop the process
 
-std::queue<std::pair<std::pair<cv::Mat, int>,std::pair<std::string, std::string>>> imageQueue;
+// std::queue<std::pair<std::pair<cv::Mat, int>,std::pair<std::string, std::string>>> imageQueue;
+
+boost::lockfree::queue<std::pair<std::pair<cv::Mat, int>, std::pair<std::string, std::string>>> imageQueue;
+
 std::mutex imageMutex;
 std::condition_variable imageCondVar;
 bool stopImageSaving = false;
@@ -59,20 +63,17 @@ void listen_for_esc() {
 }
 
 void sendData() {
-
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("Socket creation failed");
         return;
     }
 
-    // Setup server address
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(UDP_PORT);
     server_addr.sin_addr.s_addr = inet_addr(UDP_IP);
 
-    // Connect to server
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connection to server failed");
         close(sock);
@@ -85,38 +86,35 @@ void sendData() {
 
         if (stopImageSaving && imageQueue.empty()) break;
 
-        if (!imageQueue.empty()) {
-            auto dataPair = imageQueue.front();
-            imageQueue.pop();
-            lock.unlock();
+        auto dataPair = std::move(imageQueue.front());
+        imageQueue.pop();
+        lock.unlock();
 
-            auto first_pair = dataPair.first;
-            auto second_pair = dataPair.second;
+        auto& [image, socket] = dataPair.first;
+        auto& [timestamp, label] = dataPair.second;
 
-            cv::Mat image = first_pair.first;
-            std::string timestamp = second_pair.first;
-            std::string label = second_pair.second;
-
+        // Encode image asynchronously
+        auto encodeFuture = std::async(std::launch::async, [&]() {
             std::vector<uchar> buffer;
-            cv::imencode(".png", image, buffer);
+            cv::imencode(".jpg", image, buffer); // Faster than PNG
+            return buffer;
+        });
 
-            // int rows = image.rows;
-            // int cols = image.cols;
-            std::string header = label + "|" + timestamp + "|";
+        std::vector<uchar> buffer = encodeFuture.get();
 
-            size_t header_size = header.size();
-            size_t image_size = buffer.size();
+        std::string header = label + "|" + timestamp + "|";
 
-            // Send header size and header
-            send(sock, &header_size, sizeof(header_size), 0);
-            send(sock, header.data(), header_size, 0);
+        size_t header_size = header.size();
+        size_t image_size = buffer.size();
 
-            // Send image size and image
-            send(sock, &image_size, sizeof(image_size), 0);
-            send(sock, buffer.data(), image_size, 0);
+        // Send header size and header
+        send(sock, &header_size, sizeof(header_size), 0);
+        send(sock, header.data(), header_size, 0);
 
-            // std::cout << "Sent " << image_size << " bytes successfully\n";
-        }
+        // Send image size and image
+        send(sock, &image_size, sizeof(image_size), 0);
+        send(sock, buffer.data(), image_size, 0);
+        
     }
 
     close(sock);
@@ -125,95 +123,70 @@ void sendData() {
 
 
 
-void camera_record(StereoCamera& stereoCam, int sock){
-    // StereoCamera stereoCam(0, 2); // Adjust IDs based on your setup
 
-    // std::cout << "In camera thread " <<std::endl;
-    auto now = std::chrono::steady_clock::now();
+void camera_record(StereoCamera& stereoCam, int sock){
+    auto lastFrameTime = std::chrono::steady_clock::now();
     int frameCounter = 0;
 
-    cv::Mat leftFrame, rightFrame;
-    // Define a vector to store timestamps
-    
     while (!interupt) {
-        // cv::Mat leftFrame, rightFrame;
         auto currentTime = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - now).count();
-        if (elapsed >= 50) { // 1000 ms / 20 FPS = 50 ms
-            // Capture stereo frames
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastFrameTime).count();
+        
+        if (elapsed >= 50) { // 20 FPS
+            cv::Mat leftFrame, rightFrame;
             std::string timestamp;
+
             if (stereoCam.captureFrames(leftFrame, rightFrame, timestamp)) {
-                auto now = std::chrono::steady_clock::now();
-                std::cout << frameCounter << std::endl;
-                // Get current time in seconds with microsecond precision
-                
+                std::cout << frameCounter++ << std::endl;
+
+                // Lock once and push both frames together
                 {
                     std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.push({{leftFrame, sock}, {timestamp, "L"} });
+                    imageQueue.emplace(std::make_pair(leftFrame, sock), std::make_pair(timestamp, "L"));
+                    imageQueue.emplace(std::make_pair(rightFrame, sock), std::make_pair(timestamp, "R"));
                 }
-                imageCondVar.notify_one(); // Notify saving thread
-
-                {
-                    std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.push({{rightFrame, sock}, {timestamp, "R"} });
-                }
-                imageCondVar.notify_one(); // Notify saving thread
-
-            }  
-            else {
-                std::cerr << "Failed to obtain camera scans" << std::endl;
+                imageCondVar.notify_all();
+            } else {
+                std::cerr << "Camera capture failed!" << std::endl;
                 interupt = true;
                 break;
             }
-            frameCounter++;       
+            lastFrameTime = std::chrono::steady_clock::now(); // Update time after capturing
+
         }
     }
 }
+
 
 
     
 void lidar_record(LidarScanner& lidarscan, int sock){
-
     if (!lidarscan.initialize()) {
-        std::cerr << "RPLIDAR C1 initialization failed!" << std::endl;
-        return ;
+        std::cerr << "LIDAR initialization failed!" << std::endl;
+        return;
     }
-    // std::cout << "in lidar thread" <<std::endl;
-    auto now = std::chrono::steady_clock::now();
-    // auto start = std::chrono::steady_clock::now();
 
-    // Initialize point cloud pointers
+    auto lastScanTime = std::chrono::steady_clock::now();
     cv::Mat scans_cur;
 
     while (!interupt) {
         auto currentTime = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - now).count();
-        
-        if (elapsed >= 25) { // 1000 ms / 20 FPS = 50 ms
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastScanTime).count() >= 25) {
             std::string timestamp;
-            
             if (lidarscan.getScans(scans_cur, timestamp)) {
-                auto now = std::chrono::steady_clock::now();
-                
-                // sendLidar(sock, timestamp, scans_cur);
-                {
-                    std::lock_guard<std::mutex> lock(imageMutex);
-                    imageQueue.push({{scans_cur, sock}, {timestamp, "D"} });
-                }
-                imageCondVar.notify_one(); // Notify saving thread
-
-            }
-            else {
-                std::cerr << "Failed to obtain lidar scans" << std::endl;
+                std::lock_guard<std::mutex> lock(imageMutex);
+                imageQueue.emplace(std::make_pair(scans_cur, sock), std::make_pair(timestamp, "D"));
+                imageCondVar.notify_one();
+            } else {
+                std::cerr << "Lidar capture failed!" << std::endl;
                 interupt = true;
                 break;
-            } 
-
+            }
+            lastScanTime = std::chrono::steady_clock::now(); // Update time after capture
         }
-        
     }
-
 }
+
 
 
 
