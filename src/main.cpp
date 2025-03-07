@@ -139,7 +139,7 @@ void camera_record(StereoCamera& stereoCam, int sock){
         // cv::Mat leftFrame, rightFrame;
         auto currentTime = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - now).count();
-        if (elapsed >= 40) { // 1000 ms / 20 FPS = 50 ms
+        if (elapsed >= 50) { // 1000 ms / 20 FPS = 50 ms
             // Capture stereo frames
             std::string timestamp;
             if (stereoCam.captureFrames(leftFrame, rightFrame, timestamp)) {
@@ -158,7 +158,12 @@ void camera_record(StereoCamera& stereoCam, int sock){
                 }
                 imageCondVar.notify_one(); // Notify saving thread
 
-            }        
+            }  
+            else {
+                std::cerr << "Failed to obtain camera scans" << std::endl;
+                interupt = true;
+                break;
+            }       
         }
     }
 }

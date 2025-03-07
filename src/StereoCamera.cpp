@@ -26,7 +26,7 @@ StereoCamera::StereoCamera(int leftCamID, int rightCamID) {
 // Destructor: Release camera resources when the object goes out of scope
 StereoCamera::~StereoCamera() {
     leftCam.release();
-    if (rightCamIDp == 100){rightCam.release();}
+    if (rightCamIDp != 100){rightCam.release();}
     
 }
 
