@@ -76,7 +76,7 @@ void sendData() {
         return;
     }
 
-    while (true) {
+    while (!interupt) {
         std::unique_lock<std::mutex> lock(imageMutex);
         imageCondVar.wait(lock, [] { return !imageQueue.empty() || stopImageSaving; });
 
@@ -88,12 +88,8 @@ void sendData() {
             imageQueue.pop();
             lock.unlock();
 
-            auto first_pair = dataPair.first;
-            auto second_pair = dataPair.second;
-
-            cv::Mat image = first_pair.first;
-            std::string timestamp = second_pair.first;
-            std::string label = second_pair.second;
+            auto& [image, socket] = dataPair.first;
+            auto& [timestamp, label] = dataPair.second;
 
             std::vector<uchar> buffer;
             cv::imencode(".jpg", image, buffer);
