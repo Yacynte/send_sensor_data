@@ -10,6 +10,8 @@
 #include <pcl/conversions.h>
 #include <pcl/PCLPointCloud2.h>
 #include "rplidar.h"
+#include "sl_lidar.h" 
+#include "sl_lidar_driver.h"
 #include <opencv2/opencv.hpp>
 
 
@@ -30,5 +32,7 @@ class LidarScanner {
         std::string port_;
         int baudrate_;
         rp::standalone::rplidar::RPlidarDriver *lidar_;
+        // sl::ILidarDriver *lidar_ ;
+        IChannel* _channel;
         
 };

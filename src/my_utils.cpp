@@ -6,3 +6,4 @@ std::string getTimestamp() {
     auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
     return std::to_string(millis);
 }
+

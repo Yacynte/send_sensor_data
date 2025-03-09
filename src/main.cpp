@@ -20,8 +20,8 @@
 #include <unistd.h>
 #include <fstream>
 
-
-#define UDP_IP "192.168.178.28"
+#define UDP_IP "192.168.46.189"
+// #define UDP_IP "192.168.178.28"
 #define UDP_PORT 5005
 #define PACKET_SIZE 4096
 
@@ -98,10 +98,9 @@ void sendData() {
             std::string header = label + "|" + timestamp + "|";
             size_t header_size = header.size();
             size_t image_size = buffer.size();
-
             // Send header size and header
             if (send(sock, &header_size, sizeof(header_size), 0) < 0) {
-                perror("Failed to send header size");
+                perror("Failed to send header size\n");
                 break;
             }
             if (send(sock, header.data(), header_size, 0) < 0) {
@@ -141,7 +140,7 @@ void camera_record(StereoCamera& stereoCam, int sock) {
         auto currentTime = std::chrono::steady_clock::now();
         
         // Ensure frame capture at approximately 20 FPS (every 50 ms)
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 50) {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 25) {
             std::string timestamp;
             
             // Capture stereo frames
@@ -174,6 +173,8 @@ void lidar_record(LidarScanner& lidarscan, int sock) {
     if (!lidarscan.initialize()) {
         std::cerr << "RPLIDAR C1 initialization failed!" << std::endl;
         return;
+    } else{
+        std::cout << "Initialization complete\n"; 
     }
 
     auto lastCaptureTime = std::chrono::steady_clock::now();
