@@ -27,7 +27,7 @@ LidarScanner::~LidarScanner() {
     if (lidar_) {
         // lidar_->stopMotor();
         lidar_->stop();
-        delay(200);
+        // delay(200);
         // lidar_->setMotorSpeed(0);
         lidar_->setMotorPWM(0);
         lidar_->disconnect();

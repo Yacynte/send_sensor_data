@@ -184,7 +184,7 @@ void lidar_record(LidarScanner& lidarscan, int sock) {
         auto currentTime = std::chrono::steady_clock::now();
         
         // Capture data at 40 FPS (25 ms per frame)
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 40) {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 25) {
             std::string timestamp;
             
             if (lidarscan.getScans(scans_cur, timestamp)) {
