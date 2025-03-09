@@ -20,8 +20,8 @@
 #include <unistd.h>
 #include <fstream>
 
-#define UDP_IP "192.168.46.189"
-// #define UDP_IP "192.168.178.28"
+// #define UDP_IP "192.168.46.189"
+#define UDP_IP "192.168.178.28"
 #define UDP_PORT 5005
 #define PACKET_SIZE 4096
 
@@ -140,7 +140,7 @@ void camera_record(StereoCamera& stereoCam, int sock) {
         auto currentTime = std::chrono::steady_clock::now();
         
         // Ensure frame capture at approximately 20 FPS (every 50 ms)
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 25) {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 40) {
             std::string timestamp;
             
             // Capture stereo frames
@@ -184,7 +184,7 @@ void lidar_record(LidarScanner& lidarscan, int sock) {
         auto currentTime = std::chrono::steady_clock::now();
         
         // Capture data at 40 FPS (25 ms per frame)
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 25) {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCaptureTime).count() >= 40) {
             std::string timestamp;
             
             if (lidarscan.getScans(scans_cur, timestamp)) {

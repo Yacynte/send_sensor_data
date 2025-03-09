@@ -64,7 +64,7 @@ bool LidarScanner::initialize() {
     // std::cout << "Motor started successfully!" << std::endl;
     // std::cout << "Attempting to start scan!" << std::endl;
     // lidar_->startScanExpress(false);
-    // lidar_->startScan(false, true);
+    lidar_->startScan(false, true);
     // std::cout << "Scan started successfully!" << std::endl;
 
     return true;
@@ -78,7 +78,7 @@ bool LidarScanner::getScans(cv::Mat& lidar_matrix, std::string& timestamp) {
         return false;
     }
     // std::cout << "In and init\n";
-    lidar_->startScan(false, true);
+    // lidar_->startScan(false, true);
     // delay(3000);
     rplidar_response_measurement_node_hq_t nodes[8192];
     // size_t count = sizeof(nodes) / sizeof(nodes[0]);
@@ -102,7 +102,7 @@ bool LidarScanner::getScans(cv::Mat& lidar_matrix, std::string& timestamp) {
         float angle = nodes[i].angle_z_q14 * 90.f / 16384.f;
         float distance = nodes[i].dist_mm_q2 / 4.0f;
 
-        // if (distance > 10) {
+        if (distance > 0) {
             float x = distance * cos(angle * M_PI / 180.0f);
             float y = distance * sin(angle * M_PI / 180.0f);
 
@@ -110,7 +110,7 @@ bool LidarScanner::getScans(cv::Mat& lidar_matrix, std::string& timestamp) {
             lidar_matrix.at<float>(valid_points, 1) = y;
             // std::cout << "x: " << x << " y: " << y <<std::endl;
             valid_points++;  // Increment only for valid points
-        // }
+        }
     }
     // Trim unused rows
     lidar_matrix = lidar_matrix.rowRange(0, valid_points);
