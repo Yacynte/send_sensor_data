@@ -20,10 +20,10 @@
 #include <unistd.h>
 #include <fstream>
 
-// #define UDP_IP "192.168.46.189"
-// #define UDP_IP "192.168.122.1" 
-#define UDP_IP "192.168.178.28"
-#define UDP_PORT 5005
+// #define TCP_IP "192.168.46.189"
+// #define TCP_IP "192.168.122.1" 
+#define TCP_IP "127.0.0.1"
+#define TCP_PORT 5005
 #define PACKET_SIZE 4096
 
 std::atomic<bool> interupt(false);  // Atomic flag to safely stop the process
@@ -67,15 +67,37 @@ void sendData() {
     // Setup server address
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(UDP_PORT);
-    server_addr.sin_addr.s_addr = inet_addr(UDP_IP);
+    server_addr.sin_port = htons(TCP_PORT);
+    server_addr.sin_addr.s_addr = inet_addr(TCP_IP);
+
+    // Create a TCP socket
+    // int sock = socket(AF_INET, SOCK_STREAM, 0);
+    // if (sock < 0) {
+    //     perror("Socket creation failed");
+    //     return;
+    // }
+
+    // // Setup server address
+    // struct sockaddr_in server_addr;
+    // memset(&server_addr, 0, sizeof(server_addr));
+    // server_addr.sin_family = AF_INET;
+    // server_addr.sin_port = htons(TCP_PORT);
+    // server_addr.sin_addr.s_addr = inet_addr(TCP_IP);
+    // Convert IP address from string to binary format
+    if (inet_pton(AF_INET, TCP_IP, &server_addr.sin_addr) <= 0) {
+        perror("Invalid address / Address not supported");
+        close(sock);
+        return;
+        }
 
     // Connect to the server
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connection to server failed");
         close(sock);
         return;
-    }
+        }
+
+    std::cout << "Connection established\n";
 
     while (!interupt) {
         std::unique_lock<std::mutex> lock(imageMutex);
@@ -111,24 +133,25 @@ void sendData() {
             size_t header_size = header.size();
     
             // Send header size and header
-            if (send(socket, &header_size, sizeof(header_size), 0) < 0) {
-                perror("Failed to send header size");
+            // std::cout << header <<"\n";
+            if (send(sock, &header_size, sizeof(header_size), 0) < 0) {
+                perror("Failed to send header size\n");
                 interupt = true;
                 break;
             }
-            if (send(socket, header.data(), header_size, 0) < 0) {
+            if (send(sock, header.data(), header_size, 0) < 0) {
                 perror("Failed to send header");
                 interupt = true;
                 break;
             }
     
             // Send image size and image data
-            if (send(socket, &image_size, sizeof(image_size), 0) < 0) {
+            if (send(sock, &image_size, sizeof(image_size), 0) < 0) {
                 perror("Failed to send image size");
                 interupt = true;
                 break;
             }
-            if (send(socket, buffer.data(), image_size, 0) < 0) {
+            if (send(sock, buffer.data(), image_size, 0) < 0) {
                 perror("Failed to send image data");
                 interupt = true;
                 break;
@@ -190,10 +213,7 @@ void lidar_record(LidarScanner& lidarscan, int sock) {
     if (!lidarscan.initialize()) {
         std::cerr << "RPLIDAR C1 initialization failed!" << std::endl;
         return;
-    } else{
-        std::cout << "Initialization complete\n"; 
-    }
-
+    } 
     auto lastCaptureTime = std::chrono::steady_clock::now();
     cv::Mat scans_cur; // Matrix to store current LiDAR scans
 
@@ -236,6 +256,7 @@ int main(int argc, char** argv) {
         perror("Socket creation failed");
         return -1;
     }
+
 
     // Parse camera IDs and LiDAR port from command-line arguments
     int left_camera_id, right_camera_id;
