@@ -21,6 +21,7 @@
 #include <fstream>
 
 // #define UDP_IP "192.168.46.189"
+// #define UDP_IP "192.168.122.1" 
 #define UDP_IP "192.168.178.28"
 #define UDP_PORT 5005
 #define PACKET_SIZE 4096
@@ -79,46 +80,62 @@ void sendData() {
     while (!interupt) {
         std::unique_lock<std::mutex> lock(imageMutex);
         imageCondVar.wait(lock, [] { return !imageQueue.empty() || stopImageSaving; });
-
+    
         // Exit loop if stop signal is received and queue is empty
         if (stopImageSaving && imageQueue.empty()) break;
-
+    
         if (!imageQueue.empty()) {
             auto dataPair = imageQueue.front();
             imageQueue.pop();
             lock.unlock();
-
+    
             auto& [image, socket] = dataPair.first;
             auto& [timestamp, label] = dataPair.second;
-
-            std::vector<uchar> buffer;
-            cv::imencode(".jpg", image, buffer);
-
+    
+            size_t image_size;
+            std::vector<uchar> buffer;  // Use std::vector<uchar> for both cases
+    
+            if (label == "D") {
+                // Directly send raw image data
+                image_size = image.total() * image.elemSize();
+                buffer.assign(image.data, image.data + image_size);
+            } else {
+                // Encode image as JPEG
+                cv::imencode(".jpg", image, buffer);
+                image_size = buffer.size();
+            }
+    
             // Prepare header with label and timestamp
-            std::string header = label + "|" + timestamp + "|";
+            std::string header = label + "|" + timestamp + "|" +
+                                 std::to_string(image.rows) + "x" + std::to_string(image.cols) + "|";
             size_t header_size = header.size();
-            size_t image_size = buffer.size();
+    
             // Send header size and header
-            if (send(sock, &header_size, sizeof(header_size), 0) < 0) {
-                perror("Failed to send header size\n");
+            if (send(socket, &header_size, sizeof(header_size), 0) < 0) {
+                perror("Failed to send header size");
+                interupt = true;
                 break;
             }
-            if (send(sock, header.data(), header_size, 0) < 0) {
+            if (send(socket, header.data(), header_size, 0) < 0) {
                 perror("Failed to send header");
+                interupt = true;
                 break;
             }
-
+    
             // Send image size and image data
-            if (send(sock, &image_size, sizeof(image_size), 0) < 0) {
+            if (send(socket, &image_size, sizeof(image_size), 0) < 0) {
                 perror("Failed to send image size");
+                interupt = true;
                 break;
             }
-            if (send(sock, buffer.data(), image_size, 0) < 0) {
+            if (send(socket, buffer.data(), image_size, 0) < 0) {
                 perror("Failed to send image data");
+                interupt = true;
                 break;
             }
         }
     }
+    
 
     // Close the socket connection
     close(sock);

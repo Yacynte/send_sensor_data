@@ -38,7 +38,6 @@ LidarScanner::~LidarScanner() {
     }
 }
 
-
 bool LidarScanner::initialize() {
     lidar_ = RPlidarDriver::CreateDriver();
     // create the driver instance
