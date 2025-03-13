@@ -251,11 +251,13 @@ int main(int argc, char** argv) {
     }
 
     // Create UDP socket
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        perror("Socket creation failed");
-        return -1;
-    }
+    int sock = 0;
+    
+    // socket(AF_INET, SOCK_DGRAM, 0);
+    // if (sock < 0) {
+    //     perror("Socket creation failed");
+    //     return -1;
+    // }
 
 
     // Parse camera IDs and LiDAR port from command-line arguments
